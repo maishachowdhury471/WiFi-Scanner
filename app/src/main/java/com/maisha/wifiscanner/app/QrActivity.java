@@ -89,6 +89,10 @@ public class QrActivity extends AppCompatActivity {
     private Handler bgHandler;
     private MultiFormatReader reader;
     private boolean scanning = false;
+    private boolean cameraOpening = false;
+    private boolean permissionRequesting = false;
+    private boolean cameraPermissionDenied = false;
+    private android.util.Size previewSize = new android.util.Size(1280, 720);
     private long lastDecodeMs = 0;
     private String foundSsid, foundPass, foundSec;
     private boolean foundHidden;
@@ -195,8 +199,14 @@ public class QrActivity extends AppCompatActivity {
     // ---------- Camera ----------
 
     private void startCameraIfReady() {
+        if (cameraDevice != null || cameraOpening || permissionRequesting) return;
+        if (cameraPermissionDenied) {
+            scanHint.setText("ক্যামেরার অনুমতি না দিলে QR স্ক্যান করা যাবে না।");
+            return;
+        }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED) {
+            permissionRequesting = true;
             ActivityCompat.requestPermissions(this,
                     new String[]{Manifest.permission.CAMERA}, REQ_CAMERA);
             return;
@@ -210,19 +220,6 @@ public class QrActivity extends AppCompatActivity {
                 @Override public boolean onSurfaceTextureDestroyed(@NonNull SurfaceTexture st) { return true; }
                 @Override public void onSurfaceTextureUpdated(@NonNull SurfaceTexture st) {}
             });
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQ_CAMERA) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startCameraIfReady();
-            } else {
-                scanHint.setText("ক্যামেরার অনুমতি না দিলে QR স্ক্যান করা যাবে না।");
-                Toast.makeText(this, "ক্যামেরার অনুমতি দরকার", Toast.LENGTH_LONG).show();
-            }
         }
     }
 
@@ -244,63 +241,114 @@ public class QrActivity extends AppCompatActivity {
     }
 
     private void openCamera() {
-        startBgThread();
-        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        if (cameraDevice != null || cameraOpening) return;
+        cameraOpening = true;
         try {
+            startBgThread();
+            CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
             String cameraId = null;
+            Integer afMode = null;
             for (String id : manager.getCameraIdList()) {
                 CameraCharacteristics c = manager.getCameraCharacteristics(id);
                 Integer facing = c.get(CameraCharacteristics.LENS_FACING);
                 if (facing != null && facing == CameraCharacteristics.LENS_FACING_BACK) {
                     cameraId = id;
+                    StreamConfigurationMap map = c.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+                    if (map != null) {
+                        android.util.Size[] sizes = map.getOutputSizes(ImageFormat.YUV_420_888);
+                        if (sizes != null && sizes.length > 0) {
+                            android.util.Size best = null;
+                            for (android.util.Size s : sizes) {
+                                if (s.getWidth() <= 1280 && (best == null
+                                        || s.getWidth() * s.getHeight() > best.getWidth() * best.getHeight())) {
+                                    best = s;
+                                }
+                            }
+                            if (best == null) {
+                                best = sizes[0];
+                                for (android.util.Size s : sizes) {
+                                    if (s.getWidth() * s.getHeight() < best.getWidth() * best.getHeight()) best = s;
+                                }
+                            }
+                            previewSize = best;
+                        }
+                        int[] afModes = c.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES);
+                        if (afModes != null) {
+                            for (int m : afModes) {
+                                if (m == CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE) { afMode = m; break; }
+                            }
+                        }
+                    }
                     break;
                 }
             }
             if (cameraId == null) cameraId = manager.getCameraIdList()[0];
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                    != PackageManager.PERMISSION_GRANTED) return;
+                    != PackageManager.PERMISSION_GRANTED) { cameraOpening = false; return; }
+            final Integer chosenAf = afMode;
             manager.openCamera(cameraId, new CameraDevice.StateCallback() {
                 @Override public void onOpened(@NonNull CameraDevice camera) {
+                    cameraOpening = false;
                     cameraDevice = camera;
-                    startPreview();
+                    runOnUiThread(() -> startPreview(chosenAf));
                 }
-                @Override public void onDisconnected(@NonNull CameraDevice camera) { camera.close(); cameraDevice = null; }
-                @Override public void onError(@NonNull CameraDevice camera, int error) { camera.close(); cameraDevice = null; }
+                @Override public void onDisconnected(@NonNull CameraDevice camera) {
+                    cameraOpening = false;
+                    camera.close();
+                    cameraDevice = null;
+                }
+                @Override public void onError(@NonNull CameraDevice camera, int error) {
+                    cameraOpening = false;
+                    camera.close();
+                    cameraDevice = null;
+                    runOnUiThread(() -> scanHint.setText("ক্যামেরা খোলা যায়নি (ত্রুটি " + error + ")। অন্য অ্যাপ ক্যামেরা ব্যবহার করছে কি না দেখো।"));
+                }
             }, bgHandler);
-        } catch (CameraAccessException e) {
-            scanHint.setText("ক্যামেরা খোলা যায়নি।");
+        } catch (Throwable t) {
+            cameraOpening = false;
+            runOnUiThread(() -> scanHint.setText("ক্যামেরা খোলা যায়নি।"));
         }
     }
 
-    private void startPreview() {
+    private void startPreview(Integer afMode) {
         try {
             SurfaceTexture texture = previewView.getSurfaceTexture();
             if (texture == null || cameraDevice == null) return;
-            texture.setDefaultBufferSize(1280, 720);
+            texture.setDefaultBufferSize(previewSize.getWidth(), previewSize.getHeight());
             Surface previewSurface = new Surface(texture);
-            imageReader = ImageReader.newInstance(1280, 720, ImageFormat.YUV_420_888, 2);
+            imageReader = ImageReader.newInstance(previewSize.getWidth(), previewSize.getHeight(),
+                    ImageFormat.YUV_420_888, 2);
             imageReader.setOnImageAvailableListener(this::tryDecode, bgHandler);
             cameraDevice.createCaptureSession(
                     Arrays.asList(previewSurface, imageReader.getSurface()),
                     new CameraCaptureSession.StateCallback() {
                         @Override public void onConfigured(@NonNull CameraCaptureSession session) {
-                            captureSession = session;
                             try {
+                                if (cameraDevice == null) return;
+                                captureSession = session;
                                 CaptureRequest.Builder builder =
                                         cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
                                 builder.addTarget(previewSurface);
-                                builder.set(CaptureRequest.CONTROL_AF_MODE,
-                                        CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                                if (afMode != null) {
+                                    builder.set(CaptureRequest.CONTROL_AF_MODE, afMode);
+                                }
                                 session.setRepeatingRequest(builder.build(), null, bgHandler);
-                            } catch (CameraAccessException ignored) {}
+                            } catch (Throwable t) {
+                                runOnUiThread(() -> scanHint.setText("ক্যামেরা চালু করা যায়নি।"));
+                            }
                         }
-                        @Override public void onConfigureFailed(@NonNull CameraCaptureSession session) {}
+                        @Override public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                            runOnUiThread(() -> scanHint.setText("ক্যামেরা চালু করা যায়নি।"));
+                        }
                     }, bgHandler);
-        } catch (CameraAccessException ignored) {}
+        } catch (Throwable t) {
+            runOnUiThread(() -> scanHint.setText("ক্যামেরা খোলা যায়নি।"));
+        }
     }
 
     private void stopCamera() {
         scanning = false;
+        cameraOpening = false;
         try {
             if (captureSession != null) { captureSession.close(); captureSession = null; }
             if (cameraDevice != null) { cameraDevice.close(); cameraDevice = null; }
