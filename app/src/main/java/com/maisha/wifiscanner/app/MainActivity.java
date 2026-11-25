@@ -202,6 +202,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        CrashLog.install(this);
         setContentView(R.layout.activity_main);
 
         wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
@@ -251,6 +252,7 @@ public class MainActivity extends AppCompatActivity {
         checkPermissions();
         handler.post(signalUpdater);
         handler.post(liveDevicesUpdater);
+        CrashLog.showIfExists(this);
     }
 
     private void showSection(LinearLayout section) {
