@@ -67,11 +67,16 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
-                <TextureView
-                    android:id="@+id/previewView"
+                <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="320dp"
-                    android:background="#000000" />
+                    android:background="#000000">
+
+                    <TextureView
+                        android:id="@+id/previewView"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent" />
+                </FrameLayout>
 
                 <TextView
                     android:id="@+id/scanHint"
