@@ -86,6 +86,12 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="📷 QR" />
+
+            <Button
+                android:id="@+id/tabMap"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🗺️ ম্যাপ" />
         </LinearLayout>
     </HorizontalScrollView>
 
@@ -172,6 +178,49 @@
                     android:orientation="vertical"
                     android:paddingTop="8dp" />
 
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingTop="16dp"
+                    android:text="🛡️ নিরাপত্তা চেক"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/securityResult"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingTop="4dp"
+                    android:text="প্রথমে স্ক্যান করো, তারপর এই WiFi নিরাপদ কি না জানাবে।"
+                    android:textColor="@color/muted"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingTop="16dp"
+                    android:text="📊 ডেটা হিসাব (ফোন চালু হওয়ার পর থেকে)"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/dataUsageResult"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingTop="4dp"
+                    android:text="—"
+                    android:textColor="@color/muted"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/topAppsResult"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingTop="4dp"
+                    android:text="অ্যাপভিত্তিক হিসাব মাপা হচ্ছে…"
+                    android:textColor="@color/muted"
+                    android:textSize="14sp" />
+
                 <Button
                     android:id="@+id/btnWifiSettings"
                     android:layout_width="match_parent"
@@ -243,6 +292,44 @@
                     android:text="স্পিড মাপতে ইন্টারনেট লাগবে। ডাউনলোড আর আপলোড — দুটোই মাপা হবে।"
                     android:textColor="@color/muted"
                     android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingTop="20dp"
+                    android:text="📒 গতির ডায়েরি"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:id="@+id/speedChartBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="8dp" />
+
+                <TextView
+                    android:id="@+id/speedDiarySummary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingTop="8dp"
+                    android:text="এখনো কোনো গতি মাপা হয়নি — উপরে স্পিড মাপলেই এখানে জমা হবে।"
+                    android:textColor="@color/muted"
+                    android:textSize="14sp" />
+
+                <LinearLayout
+                    android:id="@+id/speedDiaryList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="8dp" />
+
+                <Button
+                    android:id="@+id/btnClearDiary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="🗑️ ডায়েরি মুছো" />
             </LinearLayout>
 
             <!-- DEVICES -->
@@ -304,6 +391,25 @@
                     android:textColor="@color/muted"
                     android:textSize="13sp" />
 
+                <TextView
+                    android:id="@+id/newDeviceBanner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="#fef3c7"
+                    android:padding="10dp"
+                    android:textColor="#92400e"
+                    android:textSize="14sp"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/btnSaveKnown"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="✅ সবগুলো চেনা হিসেবে সেভ করো"
+                    android:visibility="gone" />
+
                 <LinearLayout
                     android:id="@+id/devicesList"
                     android:layout_width="match_parent"
@@ -350,6 +456,71 @@
                     android:text="মনে রেখো: QR-এ যা লেখা থাকে, স্ক্যানে সেটাই পাওয়া যায়। WiFi-র মালিক নিজে QR বানিয়ে দিলেই নাম-পাসওয়ার্ড মিলবে — পাশের WiFi-র পাসওয়ার্ড এমনি বের করা যায় না।"
                     android:textColor="@color/muted"
                     android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- MAP -->
+            <LinearLayout
+                android:id="@+id/sectionMap"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="ঘরের প্রতিটা জায়গায় গিয়ে সিগন্যাল মাপো — অ্যাপ ম্যাপ বানাবে, কোথায় নেট ভালো আর কোথায় দুর্বল।"
+                    android:textColor="@color/muted"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/mapNow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingTop="12dp"
+                    android:text="এখন: —"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <EditText
+                    android:id="@+id/roomName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:hint="ঘরের নাম লেখো — যেমন: বসার ঘর"
+                    android:inputType="text" />
+
+                <Button
+                    android:id="@+id/btnMeasureRoom"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:backgroundTint="@color/navy"
+                    android:text="📍 এই ঘরে সিগন্যাল মাপো"
+                    android:textColor="#ffffff" />
+
+                <TextView
+                    android:id="@+id/mapSummary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingTop="12dp"
+                    android:text="এখনো কোনো ঘর মাপা হয়নি।"
+                    android:textColor="@color/muted"
+                    android:textSize="14sp" />
+
+                <LinearLayout
+                    android:id="@+id/mapList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="8dp" />
+
+                <Button
+                    android:id="@+id/btnClearMap"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="🗑️ ম্যাপ মুছো" />
             </LinearLayout>
 
             <TextView

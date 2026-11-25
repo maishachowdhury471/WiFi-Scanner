@@ -5,11 +5,14 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.location.LocationManager;
 import android.net.ConnectivityManager;
 import android.net.DhcpInfo;
 import android.net.NetworkInfo;
+import android.net.TrafficStats;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
@@ -21,6 +24,7 @@ import android.provider.Settings;
 import android.text.format.Formatter;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -42,16 +46,22 @@ import java.net.Socket;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -66,10 +76,21 @@ public class MainActivity extends AppCompatActivity {
 
     private TextView warningText, scanStatus, myWifiSignalLabel, channelAdvice, speedResult, devicesStatus;
     private TextView phoneCountText, otherCountText, devicesUpdatedText;
+    private TextView newDeviceBanner, mapNow, mapSummary, speedDiarySummary;
+    private TextView securityResult, dataUsageResult, topAppsResult;
+    private Button btnSaveKnown;
+    private EditText roomNameInput;
     private boolean devicesScannedOnce = false;
     private LinearLayout scanResults, myWifiInfo, channelList, devicesList;
-    private LinearLayout sectionScan, sectionMyWifi, sectionChannel, sectionSpeed, sectionDevices, sectionQr;
+    private LinearLayout sectionScan, sectionMyWifi, sectionChannel, sectionSpeed, sectionDevices, sectionQr, sectionMap;
+    private LinearLayout mapList, speedDiaryList, speedChartBox;
     private ProgressBar myWifiSignalBar, speedProgress;
+    private SharedPreferences prefs;
+    private SpeedChartView speedChartView;
+    private Set<String> lastSeenMacs = new HashSet<>();
+    private String securityExtra = "";
+    private long lastSecurityCheckMs = 0;
+    private long lastDataCheckMs = 0;
 
     private final BroadcastReceiver scanReceiver = new BroadcastReceiver() {
         @Override
@@ -97,6 +118,9 @@ public class MainActivity extends AppCompatActivity {
         public void run() {
             if (sectionMyWifi.getVisibility() == View.VISIBLE) {
                 showMyWifi();
+            }
+            if (sectionMap.getVisibility() == View.VISIBLE) {
+                showSignalMap();
             }
             handler.postDelayed(this, 3000);
         }
@@ -206,6 +230,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        prefs = getSharedPreferences("wifi_scanner", MODE_PRIVATE);
 
         warningText = findViewById(R.id.warningText);
         scanStatus = findViewById(R.id.scanStatus);
@@ -216,6 +241,18 @@ public class MainActivity extends AppCompatActivity {
         phoneCountText = findViewById(R.id.phoneCountText);
         otherCountText = findViewById(R.id.otherCountText);
         devicesUpdatedText = findViewById(R.id.devicesUpdatedText);
+        newDeviceBanner = findViewById(R.id.newDeviceBanner);
+        btnSaveKnown = findViewById(R.id.btnSaveKnown);
+        mapNow = findViewById(R.id.mapNow);
+        mapSummary = findViewById(R.id.mapSummary);
+        mapList = findViewById(R.id.mapList);
+        roomNameInput = findViewById(R.id.roomName);
+        speedDiarySummary = findViewById(R.id.speedDiarySummary);
+        speedDiaryList = findViewById(R.id.speedDiaryList);
+        speedChartBox = findViewById(R.id.speedChartBox);
+        securityResult = findViewById(R.id.securityResult);
+        dataUsageResult = findViewById(R.id.dataUsageResult);
+        topAppsResult = findViewById(R.id.topAppsResult);
         scanResults = findViewById(R.id.scanResults);
         myWifiInfo = findViewById(R.id.myWifiInfo);
         channelList = findViewById(R.id.channelList);
@@ -226,18 +263,37 @@ public class MainActivity extends AppCompatActivity {
         sectionSpeed = findViewById(R.id.sectionSpeed);
         sectionDevices = findViewById(R.id.sectionDevices);
         sectionQr = findViewById(R.id.sectionQr);
+        sectionMap = findViewById(R.id.sectionMap);
         myWifiSignalBar = findViewById(R.id.myWifiSignalBar);
         speedProgress = findViewById(R.id.speedProgress);
+        speedChartView = new SpeedChartView(this);
+        LinearLayout.LayoutParams chartLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, (int) (220 * getResources().getDisplayMetrics().density));
+        speedChartView.setLayoutParams(chartLp);
+        speedChartBox.addView(speedChartView);
 
         findViewById(R.id.tabScan).setOnClickListener(v -> showSection(sectionScan));
         findViewById(R.id.tabMyWifi).setOnClickListener(v -> { showSection(sectionMyWifi); showMyWifi(); });
         findViewById(R.id.tabChannel).setOnClickListener(v -> { showSection(sectionChannel); showChannels(); });
-        findViewById(R.id.tabSpeed).setOnClickListener(v -> showSection(sectionSpeed));
+        findViewById(R.id.tabSpeed).setOnClickListener(v -> { showSection(sectionSpeed); showSpeedDiary(); });
         findViewById(R.id.tabDevices).setOnClickListener(v -> {
             showSection(sectionDevices);
             if (!devicesScannedOnce) runDeviceScan();
         });
         findViewById(R.id.tabQr).setOnClickListener(v -> showSection(sectionQr));
+        findViewById(R.id.tabMap).setOnClickListener(v -> { showSection(sectionMap); showSignalMap(); });
+        findViewById(R.id.btnMeasureRoom).setOnClickListener(v -> measureRoom());
+        findViewById(R.id.btnClearMap).setOnClickListener(v -> {
+            prefs.edit().remove("signal_map").apply();
+            showSignalMap();
+            Toast.makeText(this, "ম্যাপ মুছে ফেলা হয়েছে।", Toast.LENGTH_SHORT).show();
+        });
+        findViewById(R.id.btnClearDiary).setOnClickListener(v -> {
+            prefs.edit().remove("speed_diary").apply();
+            showSpeedDiary();
+            Toast.makeText(this, "ডায়েরি মুছে ফেলা হয়েছে।", Toast.LENGTH_SHORT).show();
+        });
+        btnSaveKnown.setOnClickListener(v -> saveKnownMacs());
         findViewById(R.id.btnOpenScan).setOnClickListener(v -> openQr("scan"));
         findViewById(R.id.btnOpenGen).setOnClickListener(v -> openQr("generate"));
 
@@ -262,6 +318,7 @@ public class MainActivity extends AppCompatActivity {
         sectionSpeed.setVisibility(View.GONE);
         sectionDevices.setVisibility(View.GONE);
         sectionQr.setVisibility(View.GONE);
+        sectionMap.setVisibility(View.GONE);
         section.setVisibility(View.VISIBLE);
     }
 
@@ -588,6 +645,9 @@ public class MainActivity extends AppCompatActivity {
             myWifiSignalLabel.setText("সিগন্যাল: কোনো WiFi-তে যুক্ত নেই");
             myWifiSignalBar.setProgress(0);
             addInfoRow("অবস্থা", "কোনো WiFi-তে যুক্ত নেই — ফোনের WiFi চালু করে কোনো নেটওয়ার্কে যুক্ত হও।");
+            securityResult.setText("কোনো WiFi-তে যুক্ত নেই।");
+            dataUsageResult.setText("WiFi-তে যুক্ত হলে ডেটা হিসাব দেখাবে।");
+            topAppsResult.setText("");
             return;
         }
         String ssid = info.getSSID() != null ? info.getSSID().replace("\"", "") : "অজানা";
@@ -610,6 +670,8 @@ public class MainActivity extends AppCompatActivity {
         ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo ni = cm != null ? cm.getActiveNetworkInfo() : null;
         addInfoRow("ইন্টারনেট", (ni != null && ni.isConnected()) ? "চালু আছে ✅" : "নেই ❌");
+        showSecurityCheck(ssid);
+        showDataUsage();
     }
 
     private void addInfoRow(String label, String value) {
@@ -649,16 +711,21 @@ public class MainActivity extends AppCompatActivity {
         speedResult.setText("মাপা হচ্ছে… প্রথমে পিং, তারপর ডাউনলোড, তারপর আপলোড। একটু অপেক্ষা করো।");
         new Thread(() -> {
             StringBuilder out = new StringBuilder();
+            final double[] vals = new double[]{-1, -1};
+            final long[] pingVal = new long[]{-1};
             try {
                 long pingMs = measurePing("8.8.8.8", 53, 2000);
+                pingVal[0] = pingMs;
                 out.append("পিং: ").append(pingMs >= 0 ? pingMs + " ms" : "মাপা যায়নি").append("\n");
                 runOnUiThread(() -> speedProgress.setProgress(25));
 
                 double down = measureDownload();
+                vals[0] = down;
                 out.append("ডাউনলোড: ").append(down > 0 ? String.format(Locale.US, "%.1f Mbps", down) : "মাপা যায়নি").append("\n");
                 runOnUiThread(() -> speedProgress.setProgress(65));
 
                 double up = measureUpload();
+                vals[1] = up;
                 out.append("আপলোড: ").append(up > 0 ? String.format(Locale.US, "%.1f Mbps", up) : "মাপা যায়নি").append("\n");
                 out.append("\nনোট: স্পিড সার্ভার আর লাইনের উপর নির্ভর করে — একই সময়ে দুবার মাপলে একটু আলাদা আসতে পারে।");
                 runOnUiThread(() -> speedProgress.setProgress(100));
@@ -670,6 +737,10 @@ public class MainActivity extends AppCompatActivity {
                 speedResult.setText(result);
                 speedProgress.setVisibility(View.GONE);
                 speedRunning = false;
+                if (vals[0] > 0) {
+                    saveSpeedResult(vals[0], vals[1], pingVal[0]);
+                    showSpeedDiary();
+                }
             });
         }).start();
     }
@@ -740,6 +811,323 @@ public class MainActivity extends AppCompatActivity {
         } finally {
             if (conn != null) conn.disconnect();
         }
+    }
+
+    // ---------- Signal map ----------
+
+    private static class MapEntry {
+        String room;
+        int dbm;
+        long time;
+
+        MapEntry(String r, int d, long t) {
+            room = r;
+            dbm = d;
+            time = t;
+        }
+    }
+
+    private List<MapEntry> loadMapEntries() {
+        List<MapEntry> list = new ArrayList<>();
+        try {
+            JSONArray arr = new JSONArray(prefs.getString("signal_map", "[]"));
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject o = arr.getJSONObject(i);
+                list.add(new MapEntry(o.optString("room", "ঘর"), o.optInt("dbm", -80), o.optLong("time", 0)));
+            }
+        } catch (Exception ignored) {}
+        return list;
+    }
+
+    private void saveMapEntries(List<MapEntry> list) {
+        try {
+            JSONArray arr = new JSONArray();
+            for (MapEntry e : list) {
+                JSONObject o = new JSONObject();
+                o.put("room", e.room);
+                o.put("dbm", e.dbm);
+                o.put("time", e.time);
+                arr.put(o);
+            }
+            prefs.edit().putString("signal_map", arr.toString()).apply();
+        } catch (Exception ignored) {}
+    }
+
+    private void measureRoom() {
+        WifiInfo info = null;
+        try {
+            info = wifiManager.getConnectionInfo();
+        } catch (Exception ignored) {}
+        if (info == null || info.getNetworkId() == -1) {
+            Toast.makeText(this, "প্রথমে কোনো WiFi-তে যুক্ত হও, তারপর মাপো।", Toast.LENGTH_LONG).show();
+            return;
+        }
+        String room = roomNameInput.getText().toString().trim();
+        if (room.isEmpty()) {
+            room = "ঘর " + (loadMapEntries().size() + 1);
+        }
+        int rssi = info.getRssi();
+        List<MapEntry> list = loadMapEntries();
+        boolean replaced = false;
+        for (MapEntry e : list) {
+            if (e.room.equalsIgnoreCase(room)) {
+                e.dbm = rssi;
+                e.time = System.currentTimeMillis();
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced) {
+            list.add(new MapEntry(room, rssi, System.currentTimeMillis()));
+            if (list.size() > 20) list.remove(0);
+        }
+        saveMapEntries(list);
+        roomNameInput.setText("");
+        showSignalMap();
+        Toast.makeText(this, room + ": " + rssi + " dBm (" + signalWord(rssi) + ")", Toast.LENGTH_SHORT).show();
+    }
+
+    private void showSignalMap() {
+        WifiInfo info = null;
+        try {
+            info = wifiManager.getConnectionInfo();
+        } catch (Exception ignored) {}
+        if (info != null && info.getNetworkId() != -1) {
+            String ssid = info.getSSID() != null ? info.getSSID().replace("\"", "") : "";
+            mapNow.setText("এখন: " + ssid + " — " + info.getRssi() + " dBm (" + signalWord(info.getRssi()) + ")");
+        } else {
+            mapNow.setText("এখন: কোনো WiFi-তে যুক্ত নেই");
+        }
+        List<MapEntry> list = loadMapEntries();
+        mapList.removeAllViews();
+        if (list.isEmpty()) {
+            mapSummary.setText("এখনো কোনো ঘর মাপা হয়নি। ঘরের নাম লিখে 'এই ঘরে সিগন্যাল মাপো' চাপো।");
+            return;
+        }
+        Collections.sort(list, (a, b) -> Integer.compare(b.dbm, a.dbm));
+        MapEntry best = list.get(0);
+        MapEntry worst = list.get(list.size() - 1);
+        mapSummary.setText("✅ সবচেয়ে ভালো: " + best.room + " (" + best.dbm + " dBm)\n"
+                + "🔻 সবচেয়ে দুর্বল: " + worst.room + " (" + worst.dbm + " dBm)\n"
+                + "রাউটার ভালো ঘরের কাছাকাছি আছে — দুর্বল ঘরে নেট ধীর চলবে।");
+        SimpleDateFormat tf = new SimpleDateFormat("HH:mm", Locale.getDefault());
+        for (MapEntry e : list) {
+            int n = Math.max(1, signalPercent(e.dbm) / 10);
+            StringBuilder bar = new StringBuilder();
+            for (int i = 0; i < n; i++) bar.append("█");
+            TextView t = new TextView(this);
+            t.setText(e.room + ": " + bar + " " + e.dbm + " dBm (" + signalWord(e.dbm) + ") • " + tf.format(new Date(e.time)));
+            t.setTextSize(14);
+            t.setTextColor(0xFF0f172a);
+            t.setPadding(0, 4, 0, 4);
+            mapList.addView(t);
+        }
+    }
+
+    // ---------- Speed diary ----------
+
+    private void saveSpeedResult(double down, double up, long pingMs) {
+        try {
+            JSONArray arr = new JSONArray(prefs.getString("speed_diary", "[]"));
+            JSONObject o = new JSONObject();
+            o.put("t", System.currentTimeMillis());
+            o.put("d", down);
+            o.put("u", up);
+            o.put("p", pingMs);
+            arr.put(o);
+            while (arr.length() > 50) arr.remove(0);
+            prefs.edit().putString("speed_diary", arr.toString()).apply();
+        } catch (Exception ignored) {}
+    }
+
+    private void showSpeedDiary() {
+        List<double[]> rows = new ArrayList<>();
+        try {
+            JSONArray arr = new JSONArray(prefs.getString("speed_diary", "[]"));
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject o = arr.getJSONObject(i);
+                rows.add(new double[]{o.optLong("t", 0), o.optDouble("d", -1), o.optDouble("u", -1), o.optLong("p", -1)});
+            }
+        } catch (Exception ignored) {}
+        List<Float> downs = new ArrayList<>();
+        for (int i = Math.max(0, rows.size() - 10); i < rows.size(); i++) {
+            if (rows.get(i)[1] > 0) downs.add((float) rows.get(i)[1]);
+        }
+        speedChartView.setData(downs);
+        speedDiaryList.removeAllViews();
+        if (rows.isEmpty()) {
+            speedDiarySummary.setText("এখনো কোনো গতি মাপা হয়নি — উপরে স্পিড মাপলেই এখানে জমা হবে।");
+            return;
+        }
+        double best = 0, sum = 0;
+        int n = 0;
+        double[] bucketSum = new double[4];
+        int[] bucketN = new int[4];
+        for (double[] r : rows) {
+            if (r[1] <= 0) continue;
+            best = Math.max(best, r[1]);
+            sum += r[1];
+            n++;
+            Calendar c = Calendar.getInstance();
+            c.setTimeInMillis((long) r[0]);
+            int h = c.get(Calendar.HOUR_OF_DAY);
+            int b = h < 6 ? 3 : h < 12 ? 0 : h < 17 ? 1 : h < 22 ? 2 : 3;
+            bucketSum[b] += r[1];
+            bucketN[b]++;
+        }
+        String[] bucketName = {"সকালে", "দুপুরে", "সন্ধ্যায়", "রাতে"};
+        StringBuilder sb = new StringBuilder();
+        sb.append("মোট ").append(n).append(" বার মাপা হয়েছে • সেরা ডাউনলোড ")
+                .append(String.format(Locale.US, "%.1f Mbps", best))
+                .append(" • গড় ").append(String.format(Locale.US, "%.1f Mbps", n > 0 ? sum / n : 0));
+        for (int b = 0; b < 4; b++) {
+            if (bucketN[b] > 0) {
+                sb.append("\n").append(bucketName[b]).append(" গড়: ")
+                        .append(String.format(Locale.US, "%.1f Mbps", bucketSum[b] / bucketN[b]))
+                        .append(" (").append(bucketN[b]).append(" বার)");
+            }
+        }
+        speedDiarySummary.setText(sb.toString());
+        SimpleDateFormat df = new SimpleDateFormat("dd MMM HH:mm", Locale.getDefault());
+        for (int i = rows.size() - 1; i >= Math.max(0, rows.size() - 5); i--) {
+            double[] r = rows.get(i);
+            TextView t = new TextView(this);
+            t.setText(df.format(new Date((long) r[0])) + " — ডাউন " + String.format(Locale.US, "%.1f Mbps", r[1])
+                    + " • আপ " + String.format(Locale.US, "%.1f Mbps", r[2])
+                    + " • পিং " + (r[3] >= 0 ? (long) r[3] + " ms" : "—"));
+            t.setTextSize(13);
+            t.setTextColor(0xFF334155);
+            t.setPadding(0, 3, 0, 3);
+            speedDiaryList.addView(t);
+        }
+    }
+
+    // ---------- Security check & data usage ----------
+
+    private void showSecurityCheck(String ssid) {
+        String caps = null;
+        for (ScanResult r : lastResults) {
+            if (r.SSID != null && r.SSID.equals(ssid)) {
+                caps = r.capabilities;
+                break;
+            }
+        }
+        String rating;
+        if (caps == null) {
+            rating = "⚠️ নিরাপত্তা জানা যায়নি — প্রথমে স্ক্যান ট্যাবে গিয়ে স্ক্যান করো।";
+        } else if (caps.contains("WPA3")) {
+            rating = "🟢 সবচেয়ে ভালো — WPA3 সুরক্ষা আছে।";
+        } else if (caps.contains("WPA2")) {
+            rating = "🟢 ভালো — WPA2 সুরক্ষা আছে।";
+        } else if (caps.contains("WPA")) {
+            rating = "🟡 মোটামুটি — শুধু WPA; সম্ভব হলে রাউটারে WPA2/WPA3 করো।";
+        } else if (caps.contains("WEP")) {
+            rating = "🔴 খুব দুর্বল — WEP সহজে ভাঙা যায়; এক্ষুনি WPA2-তে বদলাও।";
+        } else {
+            rating = "🔴 খোলা নেটওয়ার্ক — পাসওয়ার্ড লাগে না, যে কেউ ঢুকতে পারে। ব্যাংক/পাসওয়ার্ডের কাজ এখানে করো না।";
+        }
+        securityResult.setText(rating + (securityExtra.isEmpty() ? "" : "\n" + securityExtra));
+        long now = System.currentTimeMillis();
+        if (now - lastSecurityCheckMs > 60000) {
+            lastSecurityCheckMs = now;
+            new Thread(() -> {
+                String extra = checkGatewayAndDns();
+                runOnUiThread(() -> {
+                    securityExtra = extra;
+                    securityResult.setText(rating + "\n" + extra);
+                });
+            }).start();
+        }
+    }
+
+    private String checkGatewayAndDns() {
+        StringBuilder sb = new StringBuilder();
+        try {
+            DhcpInfo dhcp = wifiManager.getDhcpInfo();
+            String gw = dhcp != null ? ipString(dhcp.gateway) : "";
+            if (!gw.isEmpty() && !gw.equals("0.0.0.0")) {
+                long t0 = System.currentTimeMillis();
+                try (Socket s = new Socket()) {
+                    s.connect(new InetSocketAddress(gw, 80), 800);
+                    sb.append("রাউটার সাড়া দিচ্ছে (").append(System.currentTimeMillis() - t0).append(" ms)");
+                } catch (Exception e) {
+                    sb.append("রাউটার সাড়া দিচ্ছে না");
+                }
+            }
+            try {
+                InetAddress.getByName("google.com");
+                if (sb.length() > 0) sb.append(" • ");
+                sb.append("DNS কাজ করছে");
+            } catch (Exception e) {
+                if (sb.length() > 0) sb.append(" • ");
+                sb.append("DNS কাজ করছে না");
+            }
+        } catch (Exception ignored) {}
+        return sb.toString();
+    }
+
+    private void showDataUsage() {
+        long totalRx = TrafficStats.getTotalRxBytes();
+        long totalTx = TrafficStats.getTotalTxBytes();
+        long mobRx = TrafficStats.getMobileRxBytes();
+        long mobTx = TrafficStats.getMobileTxBytes();
+        long wifiRx = Math.max(0, totalRx - Math.max(0, mobRx));
+        long wifiTx = Math.max(0, totalTx - Math.max(0, mobTx));
+        dataUsageResult.setText("WiFi দিয়ে: ডাউন " + formatBytes(wifiRx) + " • আপ " + formatBytes(wifiTx)
+                + "\nমোবাইল ডেটা দিয়ে: ডাউন " + formatBytes(Math.max(0, mobRx)) + " • আপ " + formatBytes(Math.max(0, mobTx)));
+        long now = System.currentTimeMillis();
+        if (now - lastDataCheckMs > 60000) {
+            lastDataCheckMs = now;
+            new Thread(this::loadTopApps).start();
+        }
+    }
+
+    private void loadTopApps() {
+        try {
+            PackageManager pm = getPackageManager();
+            List<ApplicationInfo> apps = pm.getInstalledApplications(0);
+            List<String[]> rows = new ArrayList<>();
+            for (ApplicationInfo app : apps) {
+                long rx = TrafficStats.getUidRxBytes(app.uid);
+                long tx = TrafficStats.getUidTxBytes(app.uid);
+                if (rx < 0 && tx < 0) continue;
+                long total = Math.max(0, rx) + Math.max(0, tx);
+                if (total <= 0) continue;
+                String label = String.valueOf(pm.getApplicationLabel(app));
+                rows.add(new String[]{label, String.valueOf(total)});
+            }
+            if (rows.isEmpty()) {
+                runOnUiThread(() -> topAppsResult.setText("এই ফোনে অ্যাপভিত্তিক হিসাব দেখানো যায় না।"));
+                return;
+            }
+            Collections.sort(rows, (a, b) -> Long.compare(Long.parseLong(b[1]), Long.parseLong(a[1])));
+            StringBuilder sb = new StringBuilder("সবচেয়ে বেশি ডেটা খায়:");
+            for (int i = 0; i < Math.min(5, rows.size()); i++) {
+                sb.append("\n").append(i + 1).append(". ").append(rows.get(i)[0]).append(" — ")
+                        .append(formatBytes(Long.parseLong(rows.get(i)[1])));
+            }
+            String text = sb.toString();
+            runOnUiThread(() -> topAppsResult.setText(text));
+        } catch (Exception e) {
+            runOnUiThread(() -> topAppsResult.setText("অ্যাপভিত্তিক হিসাব মাপা যায়নি।"));
+        }
+    }
+
+    private String formatBytes(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format(Locale.US, "%.1f KB", bytes / 1024.0);
+        if (bytes < 1024L * 1024 * 1024) return String.format(Locale.US, "%.1f MB", bytes / 1048576.0);
+        return String.format(Locale.US, "%.2f GB", bytes / 1073741824.0);
+    }
+
+    private void saveKnownMacs() {
+        Set<String> known = prefs.getStringSet("known_macs", null);
+        Set<String> updated = known == null ? new HashSet<>() : new HashSet<>(known);
+        updated.addAll(lastSeenMacs);
+        prefs.edit().putStringSet("known_macs", updated).apply();
+        newDeviceBanner.setVisibility(View.GONE);
+        btnSaveKnown.setVisibility(View.GONE);
+        Toast.makeText(this, "সব ডিভাইস চেনা হিসেবে সেভ হয়েছে।", Toast.LENGTH_SHORT).show();
     }
 
     // ---------- Connected devices ----------
@@ -813,7 +1201,56 @@ public class MainActivity extends AppCompatActivity {
                 phoneCountText.setText("📱 ফোন যুক্ত আছে: " + phoneCount + " টি");
                 otherCountText.setText("💻 অন্য ডিভাইস: " + otherCount + " টি   •   মোট: " + hosts.size() + " টি");
                 devicesUpdatedText.setText("🟢 লাইভ — শেষ আপডেট: " + time + " • প্রতি ৩০ সেকেন্ডে নিজে নিজে আপডেট হয়");
-                devicesStatus.setText(hosts.size() + "টি ডিভাইস পাওয়া গেছে (তোমার ফোনসহ)। ফোন চেনা আনুমানিক — MAC দেখে বোঝা যায়, কিছু ফোন অন্য ডিভাইসে দেখাতে পারে।");
+                devicesStatus.setText(hosts.size() + "টি ডিভাইস পাওয়া গেছে (তোমার ফোনসহ)। ফোন চেনা আনুমানিক — MAC দেখে বোঝা যায়, কিছু ফোন অন্য ডিভাইসে দেখাতে পারে। নতুন ডিভাইস শুধু স্ক্যানের সময় ধরা পড়ে — সারাক্ষণ নয়।");
+                // New-device alert: compare against MACs seen before.
+                Set<String> currentMacs = new HashSet<>();
+                for (String host : hosts) {
+                    String mac = arp.get(host);
+                    if (mac != null && !mac.equals("—")) currentMacs.add(mac.toUpperCase(Locale.US));
+                }
+                lastSeenMacs = new HashSet<>(currentMacs);
+                Set<String> known = prefs.getStringSet("known_macs", null);
+                if (known == null) {
+                    // First scan ever: remember everything as the baseline.
+                    prefs.edit().putStringSet("known_macs", new HashSet<>(currentMacs)).apply();
+                    newDeviceBanner.setVisibility(View.GONE);
+                    btnSaveKnown.setVisibility(View.GONE);
+                } else {
+                    Set<String> newMacs = new HashSet<>(currentMacs);
+                    newMacs.removeAll(known);
+                    if (newMacs.isEmpty()) {
+                        newDeviceBanner.setVisibility(View.GONE);
+                        btnSaveKnown.setVisibility(View.GONE);
+                    } else {
+                        newDeviceBanner.setText("🆕 নতুন ডিভাইস পাওয়া গেছে: " + newMacs.size()
+                                + " টি — আগে এই WiFi-তে দেখা যায়নি। চেনা হলে নিচের বোতামে সেভ করো।");
+                        newDeviceBanner.setVisibility(View.VISIBLE);
+                        btnSaveKnown.setVisibility(View.VISIBLE);
+                    }
+                    devicesList.removeAllViews();
+                    for (String host : hosts) {
+                        String tag = "";
+                        boolean phone = isPhone(arp.get(host), host.equals(myIp));
+                        if (host.equals(myIp)) tag = " ← তোমার ফোন";
+                        else if (host.equals(gateway)) tag = " ← রাউটার";
+                        String mac = arp.get(host);
+                        if (mac != null && newMacs.contains(mac.toUpperCase(Locale.US))) tag += " 🆕 নতুন!";
+                        TextView t = new TextView(MainActivity.this);
+                        t.setText((phone ? "📱 ফোন: " : "🔌 ") + host + "   MAC: " + arp.get(host) + tag);
+                        t.setTextSize(14);
+                        t.setTextColor(0xFF0f172a);
+                        t.setPadding(0, 4, 0, 4);
+                        devicesList.addView(t);
+                    }
+                    if (hosts.isEmpty()) {
+                        TextView t = new TextView(MainActivity.this);
+                        t.setText("কোনো ডিভাইস পাওয়া যায়নি।");
+                        t.setTextColor(0xFF64748b);
+                        devicesList.addView(t);
+                    }
+                    devicesRunning = false;
+                    return;
+                }
                 devicesList.removeAllViews();
                 for (String host : hosts) {
                     String tag = "";
