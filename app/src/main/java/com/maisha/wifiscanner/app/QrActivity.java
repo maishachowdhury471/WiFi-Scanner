@@ -88,7 +88,7 @@ public class QrActivity extends AppCompatActivity {
     private HandlerThread bgThread;
     private Handler bgHandler;
     private MultiFormatReader reader;
-    private boolean scanning = false;
+    private volatile boolean scanning = false;
     private boolean cameraOpening = false;
     private boolean permissionRequesting = false;
     private boolean cameraPermissionDenied = false;
@@ -125,6 +125,7 @@ public class QrActivity extends AppCompatActivity {
 
         Map<DecodeHintType, Object> hints = new EnumMap<>(DecodeHintType.class);
         hints.put(DecodeHintType.POSSIBLE_FORMATS, Collections.singletonList(BarcodeFormat.QR_CODE));
+        hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
         reader = new MultiFormatReader();
         reader.setHints(hints);
 
@@ -221,6 +222,23 @@ public class QrActivity extends AppCompatActivity {
                 @Override public boolean onSurfaceTextureDestroyed(@NonNull SurfaceTexture st) { return true; }
                 @Override public void onSurfaceTextureUpdated(@NonNull SurfaceTexture st) {}
             });
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_CAMERA) {
+            permissionRequesting = false;
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                cameraPermissionDenied = false;
+                scanning = true;
+                startCameraIfReady();
+            } else {
+                cameraPermissionDenied = true;
+                scanHint.setText("ক্যামেরার অনুমতি না দিলে QR স্ক্যান করা যাবে না।");
+                Toast.makeText(this, "ক্যামেরার অনুমতি দরকার", Toast.LENGTH_LONG).show();
+            }
         }
     }
 
@@ -334,6 +352,11 @@ public class QrActivity extends AppCompatActivity {
                                     builder.set(CaptureRequest.CONTROL_AF_MODE, afMode);
                                 }
                                 session.setRepeatingRequest(builder.build(), null, bgHandler);
+                                // Camera is live now — (re)enable scanning. This matters
+                                // after the permission dialog paused the activity, which
+                                // had switched scanning off via stopCamera().
+                                scanning = true;
+                                runOnUiThread(() -> scanHint.setText("ক্যামেরা চালু আছে — QR কোডটা ফ্রেমের ভেতরে ধরো।"));
                             } catch (Throwable t) {
                                 runOnUiThread(() -> scanHint.setText("ক্যামেরা চালু করা যায়নি।"));
                             }
@@ -374,12 +397,18 @@ public class QrActivity extends AppCompatActivity {
             int rowStride = yPlane.getRowStride();
             byte[] data = new byte[w * h];
             if (rowStride == w) {
-                buf.get(data);
+                buf.get(data, 0, Math.min(data.length, buf.remaining()));
             } else {
+                // Copy row by row, never reading past the buffer: on some
+                // devices the last row is shorter than rowStride, and an
+                // unguarded read would throw on every frame (silent no-scan).
                 byte[] row = new byte[rowStride];
                 for (int y = 0; y < h; y++) {
-                    buf.get(row);
-                    System.arraycopy(row, 0, data, y * w, w);
+                    int remaining = buf.remaining();
+                    if (remaining <= 0) break;
+                    int toRead = Math.min(rowStride, remaining);
+                    buf.get(row, 0, toRead);
+                    System.arraycopy(row, 0, data, y * w, Math.min(w, toRead));
                 }
             }
             PlanarYUVLuminanceSource source =
