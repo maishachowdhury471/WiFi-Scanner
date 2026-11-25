@@ -89,6 +89,7 @@ public class QrActivity extends AppCompatActivity {
     private Handler bgHandler;
     private MultiFormatReader reader;
     private volatile boolean scanning = false;
+    private boolean firstFrameSeen = false;
     private boolean cameraOpening = false;
     private boolean permissionRequesting = false;
     private boolean cameraPermissionDenied = false;
@@ -348,6 +349,13 @@ public class QrActivity extends AppCompatActivity {
                                 CaptureRequest.Builder builder =
                                         cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
                                 builder.addTarget(previewSurface);
+                                // The reader surface MUST be a target of the repeating
+                                // request too — a surface that is only in the session
+                                // never receives frames, so the scanner could never
+                                // see a QR code at all.
+                                if (imageReader != null) {
+                                    builder.addTarget(imageReader.getSurface());
+                                }
                                 if (afMode != null) {
                                     builder.set(CaptureRequest.CONTROL_AF_MODE, afMode);
                                 }
@@ -372,6 +380,7 @@ public class QrActivity extends AppCompatActivity {
 
     private void stopCamera() {
         scanning = false;
+        firstFrameSeen = false;
         cameraOpening = false;
         try {
             if (captureSession != null) { captureSession.close(); captureSession = null; }
@@ -390,6 +399,10 @@ public class QrActivity extends AppCompatActivity {
             long now = System.currentTimeMillis();
             if (now - lastDecodeMs < 200) return;
             lastDecodeMs = now;
+            if (!firstFrameSeen) {
+                firstFrameSeen = true;
+                runOnUiThread(() -> scanHint.setText("ক্যামেরা চালু আছে — QR খুঁজছি…"));
+            }
             int w = image.getWidth();
             int h = image.getHeight();
             Image.Plane yPlane = image.getPlanes()[0];
