@@ -80,6 +80,12 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="👥 ডিভাইস" />
+
+            <Button
+                android:id="@+id/tabQr"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📷 QR" />
         </LinearLayout>
     </HorizontalScrollView>
 
@@ -304,6 +310,46 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:paddingTop="8dp" />
+            </LinearLayout>
+
+            <!-- QR -->
+            <LinearLayout
+                android:id="@+id/sectionQr"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="QR দিয়ে WiFi শেয়ার করো — ক্যামেরা দিয়ে QR স্ক্যান করলেই ওই WiFi-র নাম আর পাসওয়ার্ড পেয়ে যাবে, আর নিজের WiFi-র QR বানিয়ে অন্যকে দিতে পারবে।"
+                    android:textColor="@color/muted"
+                    android:textSize="14sp" />
+
+                <Button
+                    android:id="@+id/btnOpenScan"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:backgroundTint="@color/navy"
+                    android:text="📷 QR স্ক্যান করো"
+                    android:textColor="#ffffff" />
+
+                <Button
+                    android:id="@+id/btnOpenGen"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="➕ নিজের WiFi-র QR বানাও" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingTop="8dp"
+                    android:text="মনে রেখো: QR-এ যা লেখা থাকে, স্ক্যানে সেটাই পাওয়া যায়। WiFi-র মালিক নিজে QR বানিয়ে দিলেই নাম-পাসওয়ার্ড মিলবে — পাশের WiFi-র পাসওয়ার্ড এমনি বের করা যায় না।"
+                    android:textColor="@color/muted"
+                    android:textSize="13sp" />
             </LinearLayout>
 
             <TextView

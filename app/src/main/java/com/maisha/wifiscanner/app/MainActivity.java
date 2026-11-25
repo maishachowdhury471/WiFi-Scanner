@@ -68,7 +68,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView phoneCountText, otherCountText, devicesUpdatedText;
     private boolean devicesScannedOnce = false;
     private LinearLayout scanResults, myWifiInfo, channelList, devicesList;
-    private LinearLayout sectionScan, sectionMyWifi, sectionChannel, sectionSpeed, sectionDevices;
+    private LinearLayout sectionScan, sectionMyWifi, sectionChannel, sectionSpeed, sectionDevices, sectionQr;
     private ProgressBar myWifiSignalBar, speedProgress;
 
     private final BroadcastReceiver scanReceiver = new BroadcastReceiver() {
@@ -224,6 +224,7 @@ public class MainActivity extends AppCompatActivity {
         sectionChannel = findViewById(R.id.sectionChannel);
         sectionSpeed = findViewById(R.id.sectionSpeed);
         sectionDevices = findViewById(R.id.sectionDevices);
+        sectionQr = findViewById(R.id.sectionQr);
         myWifiSignalBar = findViewById(R.id.myWifiSignalBar);
         speedProgress = findViewById(R.id.speedProgress);
 
@@ -235,6 +236,9 @@ public class MainActivity extends AppCompatActivity {
             showSection(sectionDevices);
             if (!devicesScannedOnce) runDeviceScan();
         });
+        findViewById(R.id.tabQr).setOnClickListener(v -> showSection(sectionQr));
+        findViewById(R.id.btnOpenScan).setOnClickListener(v -> openQr("scan"));
+        findViewById(R.id.btnOpenGen).setOnClickListener(v -> openQr("generate"));
 
         findViewById(R.id.btnScan).setOnClickListener(v -> startScan());
         findViewById(R.id.btnRefreshMyWifi).setOnClickListener(v -> showMyWifi());
@@ -255,7 +259,14 @@ public class MainActivity extends AppCompatActivity {
         sectionChannel.setVisibility(View.GONE);
         sectionSpeed.setVisibility(View.GONE);
         sectionDevices.setVisibility(View.GONE);
+        sectionQr.setVisibility(View.GONE);
         section.setVisibility(View.VISIBLE);
+    }
+
+    private void openQr(String mode) {
+        Intent intent = new Intent(this, QrActivity.class);
+        intent.putExtra(QrActivity.EXTRA_MODE, mode);
+        startActivity(intent);
     }
 
     // ---------- Permissions & location ----------
