@@ -247,12 +247,46 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@color/navy"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:id="@+id/phoneCountText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="📱 ফোন যুক্ত আছে: — টি"
+                        android:textColor="#ffffff"
+                        android:textSize="22sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/otherCountText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="💻 অন্য ডিভাইস: — টি   •   মোট: — টি"
+                        android:textColor="#dbeafe"
+                        android:textSize="15sp" />
+
+                    <TextView
+                        android:id="@+id/devicesUpdatedText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🟢 লাইভ — প্রতি ৩০ সেকেন্ডে নিজে নিজে আপডেট হয়"
+                        android:textColor="#dbeafe"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
                 <Button
                     android:id="@+id/btnDevices"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
                     android:backgroundTint="@color/navy"
-                    android:text="👥 যুক্ত ডিভাইস খুঁজুন"
+                    android:text="👥 এখনই আবার খুঁজুন"
                     android:textColor="#ffffff" />
 
                 <TextView

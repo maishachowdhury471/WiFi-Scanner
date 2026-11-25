@@ -65,6 +65,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean devicesRunning = false;
 
     private TextView warningText, scanStatus, myWifiSignalLabel, channelAdvice, speedResult, devicesStatus;
+    private TextView phoneCountText, otherCountText, devicesUpdatedText;
+    private boolean devicesScannedOnce = false;
     private LinearLayout scanResults, myWifiInfo, channelList, devicesList;
     private LinearLayout sectionScan, sectionMyWifi, sectionChannel, sectionSpeed, sectionDevices;
     private ProgressBar myWifiSignalBar, speedProgress;
@@ -100,6 +102,103 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    // Live device count: re-scan every 30 seconds while the Devices tab is open.
+    private final Runnable liveDevicesUpdater = new Runnable() {
+        @Override
+        public void run() {
+            if (sectionDevices.getVisibility() == View.VISIBLE && !devicesRunning) {
+                runDeviceScan();
+            }
+            handler.postDelayed(this, 30000);
+        }
+    };
+
+    // MAC address prefixes (first 3 bytes) of well-known phone makers.
+    // Identification is approximate: phones with a randomised/private MAC
+    // may show up under "other devices" instead.
+    private static final java.util.Set<String> PHONE_OUI = new java.util.HashSet<>(java.util.Arrays.asList(
+            // Samsung
+            "00:12:FB", "00:16:6B", "00:1B:2A", "00:21:19", "00:23:39", "04:FE:31",
+            "34:BE:00", "5C:51:88", "60:6B:BD", "70:F9:27", "78:59:2E", "84:25:DB",
+            "88:30:EA", "8C:77:12", "9C:02:98", "A8:9C:ED", "AC:5F:3E", "C0:BD:D1",
+            "D0:22:BE", "DC:66:CF", "E4:7D:BD", "F0:08:F6",
+            // Apple (iPhone)
+            "00:03:93", "00:0A:27", "00:0D:93", "00:14:51", "00:17:F2", "00:1B:63",
+            "00:1C:B3", "00:1D:4F", "00:1E:C2", "00:1F:5B", "00:21:E9", "00:23:12",
+            "00:23:32", "00:23:6C", "00:23:DF", "00:24:36", "00:25:00", "00:26:08",
+            "00:26:BB", "04:0C:CE", "04:15:52", "04:26:65", "04:54:53", "08:66:98",
+            "0C:30:21", "10:41:7F", "10:9A:DD", "14:10:9F", "18:20:32", "1C:1A:C0",
+            "28:37:8A", "34:15:9E", "38:0F:4A", "3C:06:30", "40:33:1A", "44:2A:60",
+            "48:43:7C", "4C:57:CA", "50:32:75", "54:26:96", "58:55:CA", "5C:95:AE",
+            "60:03:08", "64:20:0C", "68:09:27", "6C:19:8F", "70:11:24", "74:40:BE",
+            "78:31:C1", "7C:04:D0", "80:00:6D", "84:08:E2", "88:1E:59", "8C:00:6D",
+            "90:03:B7", "94:27:90", "98:01:A7", "9C:04:EB", "A0:18:28", "A4:5E:60",
+            "A8:1D:16", "AC:1F:0F", "B0:34:95", "B4:18:D1", "B8:09:8A", "BC:4B:2B",
+            "C0:1A:DA", "C4:13:85", "C8:02:10", "CC:08:8D", "D0:03:DF", "D4:1D:6F",
+            "D8:02:9B", "DC:07:FA", "E0:0A:F6", "E4:12:89", "E8:04:D8", "EC:08:8B",
+            "F0:18:98", "F4:0F:24", "F8:0D:60", "FC:01:9E",
+            // Xiaomi / Redmi / POCO
+            "00:9E:C8", "0C:1D:AF", "14:F6:5A", "18:59:36", "20:47:DA", "28:6C:07",
+            "34:80:B3", "38:A4:ED", "3C:BD:D8", "40:31:3C", "48:46:FB", "50:64:2B",
+            "58:44:98", "64:09:80", "64:CC:2E", "68:DF:DD", "74:23:44", "78:02:F8",
+            "7C:1D:D9", "80:AD:16", "84:38:38", "88:9F:6F", "98:FA:E3", "A0:86:C6",
+            "A4:50:46", "AC:C1:EE", "B0:E2:35", "C4:0B:CB", "D4:97:0B", "DC:1D:9F",
+            "E0:DC:FF", "F0:2F:74", "F4:09:D8", "F8:A4:5F",
+            // Huawei / Honor
+            "00:18:82", "00:1E:10", "00:22:A1", "00:25:9E", "00:46:4B", "04:02:1F",
+            "04:47:2D", "04:56:E5", "04:BD:88", "08:63:61", "0C:37:DC", "10:1F:74",
+            "10:C6:1F", "10:D7:B5", "18:1E:78", "18:47:2D", "20:2B:20", "24:09:95",
+            "24:47:0E", "28:31:52", "2C:33:7A", "30:55:ED", "34:12:F9", "34:6A:17",
+            "38:3B:26", "3C:71:BF", "40:02:48", "40:4D:7F", "44:23:AA", "48:1A:84",
+            "48:27:EA", "4C:09:B4", "4C:11:BF", "50:06:14", "50:2F:9B", "54:29:0F",
+            "54:35:30", "58:02:03", "58:10:8C", "5C:02:2C", "5C:09:4D", "60:08:3A",
+            "60:12:5B", "64:0D:7E", "64:12:69", "68:05:71", "68:10:51", "6C:15:60",
+            "6C:1E:1F", "70:18:87", "70:24:CB", "74:04:2B", "74:06:6D",
+            // Oppo / Vivo / Realme / OnePlus / Infinix / Tecno / Nokia / Motorola / Pixel / Sony
+            "00:1F:8E", "08:57:00", "0C:5A:19", "1C:5A:0B", "20:82:C0", "28:3A:4D",
+            "30:74:96", "34:6B:46", "34:6F:92", "34:7E:39", "34:96:72", "34:A8:4E",
+            "34:C3:D2", "34:CE:94", "38:6E:A0", "38:7F:2B", "38:BC:1A", "38:F8:CA",
+            "3C:8C:93", "3C:BD:3E", "3C:CB:7C", "3C:CD:93", "40:5D:82", "40:74:E0",
+            "40:84:76", "40:89:67", "40:8E:2E", "40:92:3A", "40:9F:38", "40:B9:8C",
+            "40:CB:30", "40:E3:D6", "40:F2:01", "44:33:4C", "44:4F:8A", "44:5A:B7",
+            "44:85:00", "44:97:5B", "44:A6:E5", "44:C6:04", "44:C9:A2", "44:CC:16",
+            "44:D1:FA", "44:E1:37", "44:F4:9C", "48:1D:42", "48:1F:6E", "48:3B:38",
+            "48:51:CA", "48:55:CC", "48:72:92", "48:7A:55", "48:8A:6A", "48:9E:BD",
+            "48:A6:B8", "48:AD:08", "48:B2:F1", "48:C5:8A", "48:CC:3C", "48:D8:45",
+            "48:DB:50", "48:E7:DA", "48:F7:F1", "48:FB:65", "4C:1F:CC", "4C:48:DA",
+            "4C:49:96", "4C:54:99", "4C:60:D0", "4C:7F:62", "4C:8B:EF", "4C:B1:67",
+            "4C:C0:81", "4C:CC:6A", "4C:D0:8A", "4C:E1:75", "50:0B:91", "50:3E:AA",
+            "50:4B:ED", "50:5B:C2", "50:5F:65", "50:76:91", "50:78:B3", "50:7E:5D",
+            "50:8A:CB", "50:96:3D", "50:9A:4C", "50:A6:7F", "50:A7:2B", "50:C7:BF",
+            "50:D2:F5", "50:D8:19", "50:E0:EF", "50:FA:AB", "54:2D:52", "54:39:DF",
+            "54:4A:16", "54:64:D9", "54:75:D0", "54:89:98", "54:8F:55", "54:A3:FA",
+            "54:A5:1B", "54:B8:0A", "54:BE:F7", "54:C8:0F", "54:E3:19", "58:03:1C",
+            "58:1C:1B", "58:2A:33", "58:32:8A", "58:3C:3E", "58:4B:F0", "58:53:10",
+            "58:7F:57", "58:82:A8", "58:90:77", "58:9B:3D", "58:9D:24", "58:A2:C2",
+            "58:B0:3E", "58:C3:8B", "58:CE:2A", "58:D0:71", "58:D6:9E", "58:DF:8B",
+            "58:E8:76", "58:EC:23", "58:F0:84", "5C:09:DD", "5C:11:93", "5C:16:A6",
+            "5C:19:2B", "5C:26:0A", "5C:33:8E", "5C:3C:27", "5C:3C:6A", "5C:3D:5A",
+            "5C:4C:A9", "5C:5A:2B", "5C:66:CF", "5C:6D:20", "5C:7D:5E", "5C:86:2E",
+            "5C:93:A2", "5C:A6:E6", "5C:B3:95", "5C:B4:3E", "5C:B8:C1", "5C:BD:5A",
+            "5C:C3:07", "5C:C8:80", "5C:D1:35", "5C:D2:0E", "5C:E0:CA", "5C:EB:68",
+            "5C:EA:1D", "5C:EF:68", "60:21:C0", "60:33:4B", "60:38:E0", "60:4B:3A",
+            "60:4E:56", "60:6E:41", "60:71:8C", "60:89:3C", "60:8C:2B", "60:8D:17",
+            "60:90:8C", "60:A4:BD", "60:B7:DA", "60:B9:E2", "60:C3:97", "60:C8:5A",
+            "60:CC:4A", "60:D1:1A", "60:D2:3C", "60:D9:A0", "60:DE:44", "60:E0:6C",
+            "60:E1:66", "60:E7:9E", "60:EB:69", "60:F1:89", "60:F4:2A", "60:F8:1D",
+            "64:13:6C", "64:16:8D", "64:1C:2E", "64:2D:8F", "64:3A:EA", "64:3E:8C",
+            "64:42:14", "64:49:7D", "64:4C:36", "64:6C:B2", "64:70:33", "64:76:25",
+            "64:87:88", "64:8E:14", "64:A0:E7", "64:A2:F9", "64:A7:DD", "64:BC:0C",
+            "64:C6:67", "64:CF:2D", "64:D1:A3", "64:DB:18", "64:E8:81", "64:F6:9D"
+    ));
+
+    private boolean isPhone(String mac, boolean isMyPhone) {
+        if (isMyPhone) return true;
+        if (mac == null || mac.length() < 8) return false;
+        String prefix = mac.substring(0, 8).toUpperCase(Locale.US);
+        return PHONE_OUI.contains(prefix);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -113,6 +212,9 @@ public class MainActivity extends AppCompatActivity {
         channelAdvice = findViewById(R.id.channelAdvice);
         speedResult = findViewById(R.id.speedResult);
         devicesStatus = findViewById(R.id.devicesStatus);
+        phoneCountText = findViewById(R.id.phoneCountText);
+        otherCountText = findViewById(R.id.otherCountText);
+        devicesUpdatedText = findViewById(R.id.devicesUpdatedText);
         scanResults = findViewById(R.id.scanResults);
         myWifiInfo = findViewById(R.id.myWifiInfo);
         channelList = findViewById(R.id.channelList);
@@ -129,7 +231,10 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.tabMyWifi).setOnClickListener(v -> { showSection(sectionMyWifi); showMyWifi(); });
         findViewById(R.id.tabChannel).setOnClickListener(v -> { showSection(sectionChannel); showChannels(); });
         findViewById(R.id.tabSpeed).setOnClickListener(v -> showSection(sectionSpeed));
-        findViewById(R.id.tabDevices).setOnClickListener(v -> showSection(sectionDevices));
+        findViewById(R.id.tabDevices).setOnClickListener(v -> {
+            showSection(sectionDevices);
+            if (!devicesScannedOnce) runDeviceScan();
+        });
 
         findViewById(R.id.btnScan).setOnClickListener(v -> startScan());
         findViewById(R.id.btnRefreshMyWifi).setOnClickListener(v -> showMyWifi());
@@ -141,6 +246,7 @@ public class MainActivity extends AppCompatActivity {
 
         checkPermissions();
         handler.post(signalUpdater);
+        handler.post(liveDevicesUpdater);
     }
 
     private void showSection(LinearLayout section) {
@@ -236,6 +342,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         handler.removeCallbacks(signalUpdater);
+        handler.removeCallbacks(liveDevicesUpdater);
     }
 
     // ---------- Scan ----------
@@ -682,14 +789,26 @@ public class MainActivity extends AppCompatActivity {
                 return Integer.compare(ai, bi);
             });
             runOnUiThread(() -> {
-                devicesStatus.setText(hosts.size() + "টি ডিভাইস পাওয়া গেছে (তোমার ফোনসহ)।");
+                devicesScannedOnce = true;
+                int phoneCount = 0;
+                for (String host : hosts) {
+                    String mac = arp.get(host);
+                    if (isPhone(mac, host.equals(myIp))) phoneCount++;
+                }
+                int otherCount = hosts.size() - phoneCount;
+                String time = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
+                phoneCountText.setText("📱 ফোন যুক্ত আছে: " + phoneCount + " টি");
+                otherCountText.setText("💻 অন্য ডিভাইস: " + otherCount + " টি   •   মোট: " + hosts.size() + " টি");
+                devicesUpdatedText.setText("🟢 লাইভ — শেষ আপডেট: " + time + " • প্রতি ৩০ সেকেন্ডে নিজে নিজে আপডেট হয়");
+                devicesStatus.setText(hosts.size() + "টি ডিভাইস পাওয়া গেছে (তোমার ফোনসহ)। ফোন চেনা আনুমানিক — MAC দেখে বোঝা যায়, কিছু ফোন অন্য ডিভাইসে দেখাতে পারে।");
                 devicesList.removeAllViews();
                 for (String host : hosts) {
                     String tag = "";
+                    boolean phone = isPhone(arp.get(host), host.equals(myIp));
                     if (host.equals(myIp)) tag = " ← তোমার ফোন";
                     else if (host.equals(gateway)) tag = " ← রাউটার";
                     TextView t = new TextView(MainActivity.this);
-                    t.setText("📱 " + host + "   MAC: " + arp.get(host) + tag);
+                    t.setText((phone ? "📱 ফোন: " : "🔌 ") + host + "   MAC: " + arp.get(host) + tag);
                     t.setTextSize(14);
                     t.setTextColor(0xFF0f172a);
                     t.setPadding(0, 4, 0, 4);
