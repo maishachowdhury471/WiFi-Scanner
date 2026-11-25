@@ -531,15 +531,6 @@
                 android:text="Developed by Nabinur Islam Roni — Software Engineer"
                 android:textColor="@color/muted"
                 android:textSize="12sp" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:paddingBottom="16dp"
-                android:text="এই অ্যাপ কারো WiFi পাসওয়ার্ড দেখায় না বা হ্যাক করে না।"
-                android:textColor="@color/muted"
-                android:textSize="12sp" />
         </LinearLayout>
     </ScrollView>
 </LinearLayout>
