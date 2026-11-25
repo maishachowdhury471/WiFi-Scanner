@@ -1,0 +1,63 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace "com.maisha.wifiscanner.app"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.maisha.wifiscanner.app"
+        minSdk 24
+        targetSdk 35
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    signingConfigs {
+        release {
+            def propsFile = rootProject.file("keystore/keystore.properties")
+            if (propsFile.exists()) {
+                def props = new Properties()
+                props.load(new FileInputStream(propsFile))
+                storeFile rootProject.file("keystore/wifi-scanner.jks")
+                storePassword props['storePassword']
+                keyAlias props['keyAlias']
+                keyPassword props['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+        debug {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packaging {
+        resources {
+            excludes += "commonMain/**"
+            excludes += "META-INF/kotlin-project-structure-metadata.json"
+        }
+    }
+}
+
+configurations.all {
+    resolutionStrategy {
+        force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.25'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.25'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.25'
+    }
+}
+
+dependencies {
+    implementation "androidx.appcompat:appcompat:1.7.0"
+    implementation "androidx.core:core:1.15.0"
+}

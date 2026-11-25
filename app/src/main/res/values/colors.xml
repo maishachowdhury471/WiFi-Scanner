@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="navy">#1d4ed8</color>
+    <color name="navy_dark">#1e3a8a</color>
+    <color name="sky">#38bdf8</color>
+    <color name="bg">#f1f5f9</color>
+    <color name="card">#ffffff</color>
+    <color name="text">#0f172a</color>
+    <color name="muted">#64748b</color>
+    <color name="orange">#ea580c</color>
+    <color name="red">#dc2626</color>
+    <color name="ic_launcher_background">#1d4ed8</color>
+</resources>

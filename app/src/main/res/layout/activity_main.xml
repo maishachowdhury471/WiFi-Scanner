@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/navy"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📶 ওয়াইফাই স্ক্যানার"
+            android:textColor="#ffffff"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="আশেপাশের WiFi, সিগন্যাল, চ্যানেল আর স্পিড — সব এক জায়গায়"
+            android:textColor="#dbeafe"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/warningText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#fef3c7"
+        android:padding="10dp"
+        android:text="স্ক্যান করতে লোকেশন চালু রাখতে হবে আর অনুমতি দিতে হবে।"
+        android:textColor="#92400e"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/card"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="6dp">
+
+            <Button
+                android:id="@+id/tabScan"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔍 স্ক্যান" />
+
+            <Button
+                android:id="@+id/tabMyWifi"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📱 আমার WiFi" />
+
+            <Button
+                android:id="@+id/tabChannel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📊 চ্যানেল" />
+
+            <Button
+                android:id="@+id/tabSpeed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⚡ স্পিড" />
+
+            <Button
+                android:id="@+id/tabDevices"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="👥 ডিভাইস" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <!-- SCAN -->
+            <LinearLayout
+                android:id="@+id/sectionScan"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <Button
+                    android:id="@+id/btnScan"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:backgroundTint="@color/navy"
+                    android:text="🔍 আবার স্ক্যান করো"
+                    android:textColor="#ffffff" />
+
+                <TextView
+                    android:id="@+id/scanStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingTop="8dp"
+                    android:text="স্ক্যান করতে উপরের বোতাম চাপো।"
+                    android:textColor="@color/muted"
+                    android:textSize="13sp" />
+
+                <LinearLayout
+                    android:id="@+id/scanResults"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="8dp" />
+            </LinearLayout>
+
+            <!-- MY WIFI -->
+            <LinearLayout
+                android:id="@+id/sectionMyWifi"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <Button
+                    android:id="@+id/btnRefreshMyWifi"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:backgroundTint="@color/navy"
+                    android:text="🔄 তথ্য আবার দেখো"
+                    android:textColor="#ffffff" />
+
+                <TextView
+                    android:id="@+id/myWifiSignalLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingTop="12dp"
+                    android:text="সিগন্যাল: —"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <ProgressBar
+                    android:id="@+id/myWifiSignalBar"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="100"
+                    android:progress="0" />
+
+                <LinearLayout
+                    android:id="@+id/myWifiInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="8dp" />
+
+                <Button
+                    android:id="@+id/btnWifiSettings"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="⚙️ WiFi সেটিংস খুলুন" />
+
+                <Button
+                    android:id="@+id/btnRouterPage"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🌐 রাউটারের পাতায় ঢুকুন" />
+            </LinearLayout>
+
+            <!-- CHANNEL -->
+            <LinearLayout
+                android:id="@+id/sectionChannel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/channelAdvice"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="প্রথমে স্ক্যান ট্যাবে গিয়ে স্ক্যান করো, তারপর এখানে চ্যানেলের ভিড় দেখাবে।"
+                    android:textColor="@color/muted"
+                    android:textSize="14sp" />
+
+                <LinearLayout
+                    android:id="@+id/channelList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="8dp" />
+            </LinearLayout>
+
+            <!-- SPEED -->
+            <LinearLayout
+                android:id="@+id/sectionSpeed"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <Button
+                    android:id="@+id/btnSpeed"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:backgroundTint="@color/navy"
+                    android:text="⚡ স্পিড মাপুন"
+                    android:textColor="#ffffff" />
+
+                <ProgressBar
+                    android:id="@+id/speedProgress"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="100"
+                    android:progress="0"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/speedResult"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingTop="12dp"
+                    android:text="স্পিড মাপতে ইন্টারনেট লাগবে। ডাউনলোড আর আপলোড — দুটোই মাপা হবে।"
+                    android:textColor="@color/muted"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- DEVICES -->
+            <LinearLayout
+                android:id="@+id/sectionDevices"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <Button
+                    android:id="@+id/btnDevices"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:backgroundTint="@color/navy"
+                    android:text="👥 যুক্ত ডিভাইস খুঁজুন"
+                    android:textColor="#ffffff" />
+
+                <TextView
+                    android:id="@+id/devicesStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingTop="8dp"
+                    android:text="এই WiFi-তে কতগুলো ফোন/ডিভাইস যুক্ত আছে, সেটা খুঁজে দেখাবে। এতে ১ মিনিট পর্যন্ত লাগতে পারে।"
+                    android:textColor="@color/muted"
+                    android:textSize="13sp" />
+
+                <LinearLayout
+                    android:id="@+id/devicesList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="8dp" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:paddingTop="24dp"
+                android:text="Developed by Nabinur Islam Roni — Software Engineer"
+                android:textColor="@color/muted"
+                android:textSize="12sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:paddingBottom="16dp"
+                android:text="এই অ্যাপ কারো WiFi পাসওয়ার্ড দেখায় না বা হ্যাক করে না।"
+                android:textColor="@color/muted"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
